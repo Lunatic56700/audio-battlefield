@@ -1,0 +1,84 @@
+:root {
+  --bg: #1a0f0a;
+  --bg2: #0c0705;
+  --fg: #f6efe6;
+  --muted: #b39b86;
+  --accent: #ff8a3d;
+  --danger: #ff4d4d;
+  --ok: #7bd88f;
+}
+
+* { box-sizing: border-box; -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent; }
+
+html, body {
+  margin: 0;
+  min-height: 100%;
+  background: radial-gradient(circle at 50% 0%, var(--bg), var(--bg2));
+  color: var(--fg);
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  touch-action: none; /* let the game handle all gestures */
+  overflow: hidden;
+}
+
+/* ---- Start overlay ---- */
+#overlay {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: radial-gradient(circle at 50% 35%, #241206, #080402);
+  cursor: pointer;
+  z-index: 10;
+  text-align: center;
+}
+.overlay-inner { padding: 2rem; max-width: 34rem; }
+.logo { font-size: 4.5rem; }
+#overlay h1 { font-size: clamp(2.2rem, 8vw, 3.4rem); margin: 0.3em 0 0.2em; letter-spacing: 0.02em; }
+.tap {
+  font-size: clamp(1.4rem, 5vw, 2rem);
+  font-weight: 800;
+  color: var(--accent);
+  margin: 0.4em 0;
+}
+.hint { color: var(--muted); font-size: 1.05rem; line-height: 1.7; }
+
+/* ---- Game / HUD ---- */
+.game { max-width: 640px; margin: 0 auto; padding: 1.6rem 1.25rem; text-align: center; }
+.status {
+  font-size: clamp(1.4rem, 6vw, 2.1rem);
+  font-weight: 800;
+  color: var(--accent);
+  min-height: 1.6em;
+  margin: 0.4em 0 1em;
+}
+.hud {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.6rem;
+  margin-bottom: 1rem;
+}
+.stat {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  border-radius: 12px;
+  padding: 0.7rem 0.4rem;
+}
+.stat .k { display: block; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.12em; color: var(--muted); }
+.stat .v { display: block; font-size: 1.5rem; font-weight: 800; margin-top: 0.15em; }
+
+.threats-line, .action-line {
+  font-size: 1rem;
+  color: var(--fg);
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 10px;
+  padding: 0.6rem 0.8rem;
+  margin: 0.5rem 0;
+  word-break: break-word;
+}
+.k { color: var(--muted); text-transform: uppercase; font-size: 0.72rem; letter-spacing: 0.12em; margin-right: 0.4em; }
+
+.help { max-width: 460px; margin: 1rem auto 0; text-align: left; color: var(--muted); }
+.help summary { cursor: pointer; font-weight: 700; color: var(--fg); padding: 0.4em 0; }
+.help ul { margin: 0.4em 0; padding-left: 1.2em; line-height: 1.8; }
+.help strong { color: var(--accent); }

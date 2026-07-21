@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Audio Battlefield</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <!-- Start screen. The one tap unlocks audio + vibration. -->
+  <div id="overlay">
+    <div class="overlay-inner">
+      <div class="logo" aria-hidden="true">🎧💥</div>
+      <h1>Audio Battlefield</h1>
+      <p class="tap">Tap to deploy</p>
+      <p class="hint">
+        <strong>Put headphones on.</strong> You play by ear.<br />
+        Swipe toward a sound to shoot · tap = center · up = plane · down = take cover · hold = reload.
+      </p>
+    </div>
+  </div>
+
+  <main class="game">
+    <p id="status" class="status" aria-live="assertive">Tap to deploy</p>
+
+    <!-- HUD is for a sighted helper / debugging; the player uses only sound. -->
+    <div class="hud">
+      <div class="stat"><span class="k">Health</span><span id="hud-health" class="v">100</span></div>
+      <div class="stat"><span class="k">Ammo</span><span id="hud-ammo" class="v">8 / 8</span></div>
+      <div class="stat"><span class="k">Wave</span><span id="hud-wave" class="v">1</span></div>
+      <div class="stat"><span class="k">Score</span><span id="hud-score" class="v">0</span></div>
+    </div>
+    <p class="threats-line"><span class="k">Threats</span> <span id="hud-threats">clear</span></p>
+    <p class="action-line"><span class="k">Last</span> <span id="hud-action">—</span></p>
+
+    <details class="help">
+      <summary>Controls</summary>
+      <ul>
+        <li><strong>swipe left / right</strong> — shoot that lane</li>
+        <li><strong>tap</strong> — shoot center</li>
+        <li><strong>swipe up</strong> — gun down a plane (while overhead)</li>
+        <li><strong>swipe down</strong> — take cover from a shell</li>
+        <li><strong>hold</strong> — reload</li>
+        <li><em>keyboard:</em> arrows + space + R</li>
+      </ul>
+    </details>
+  </main>
+
+  <script src="audio.js"></script>
+  <script src="game.js"></script>
+</body>
+</html>

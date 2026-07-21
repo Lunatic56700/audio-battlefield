@@ -23,9 +23,24 @@ const WAVE_TIME = 20;             // seconds per wave
 const LANE_PAN = { "-1": -0.9, "0": 0, "1": 0.9 };
 const MAX_SOLDIERS = 4;
 
-const DMG_SOLDIER = 15;
+const SOLDIER_RANGE = 0.16;       // distance at which a soldier stops and opens fire
+const SOLDIER_FIRE_WINDOW = 1.4;  // seconds you have to kill it once it opens fire
+const SOLDIER_FIRE_REPEAT = 1.6;  // it keeps shooting this often until killed
+
+const DMG_SOLDIER = 12;
 const DMG_SHELL = 30;
 const DMG_BOMB = 35;
+
+// Real recorded sounds live in ./assets/. Anything missing falls back to synth.
+// (Filled in as real clips are added; empty = fully synthesized.)
+const SAMPLE_MAP = {
+  // gunshot:   "assets/gunshot.mp3",
+  // enemyShot: "assets/enemy-shot.mp3",
+  // boots:     "assets/boots.mp3",
+  // explosion: "assets/explosion.mp3",
+  // klaxon:    "assets/klaxon.mp3",
+  // reload:    "assets/reload.mp3",
+};
 
 // ---- State ------------------------------------------------------------------
 let phase = "idle"; // idle | intro | playing | over
@@ -99,7 +114,7 @@ function updateHud() {
   el.action.textContent = state.lastAction;
   const parts = [];
   const name = { "-1": "LEFT", "0": "CENTER", "1": "RIGHT" };
-  state.soldiers.forEach(s => parts.push(name[s.lane] + " soldier " + s.d.toFixed(2)));
+  state.soldiers.forEach(s => parts.push(name[s.lane] + (s.state === "firing" ? " soldier FIRING" : " soldier " + s.d.toFixed(2))));
   if (state.plane) parts.push("PLANE " + (state.plane.targetable ? "(shoot up!)" : "incoming") + " " + state.plane.p.toFixed(2));
   if (state.shell) parts.push("SHELL (cover down!) " + state.shell.p.toFixed(2));
   el.threats.textContent = parts.length ? parts.join(" · ") : "clear";
@@ -110,7 +125,7 @@ function spawnSoldier() {
   if (state.soldiers.length >= MAX_SOLDIERS) return;
   const lane = [-1, 0, 1][Math.floor(Math.random() * 3)];
   const speed = 0.12 + state.wave * 0.02 + Math.random() * 0.04; // per second
-  state.soldiers.push({ lane, d: 1, speed, stepAcc: 0 });
+  state.soldiers.push({ lane, d: 1, speed, state: "advance", bootsAcc: 0, fireTimer: 0 });
 }
 function spawnPlane() {
   if (state.plane) return;
@@ -193,10 +208,10 @@ function reload() {
 }
 
 // ---- Damage / death ---------------------------------------------------------
-function damage(amount, sourcePan, size) {
+function damage(amount, sourcePan, size, boom = true) {
   state.health -= amount;
   AudioEngine.hitBuzz();
-  AudioEngine.explosion(sourcePan || 0, size || 0.7, 0.8);
+  if (boom) AudioEngine.explosion(sourcePan || 0, size || 0.7, 0.8);
   buzz([120, 60, 120]);
   if (state.health <= 0) { state.health = 0; gameOver(); }
 }
@@ -252,19 +267,29 @@ function tick() {
     if (state.shellAcc >= Math.max(6, 11 - state.wave)) { state.shellAcc = 0; if (Math.random() < 0.7) spawnShell(); }
   }
 
-  // update soldiers
+  // update soldiers: run up (boots get louder + faster), then open fire in range
   for (let i = state.soldiers.length - 1; i >= 0; i--) {
     const s = state.soldiers[i];
-    s.d -= s.speed * dt;
-    const prox = 1 - Math.max(0, s.d);
-    s.stepAcc += dt;
-    const interval = 0.7 - prox * 0.54; // far ~0.7s -> near ~0.16s
-    if (s.stepAcc >= interval) { s.stepAcc = 0; AudioEngine.step(LANE_PAN[s.lane], prox); }
-    if (s.d <= 0) {
-      state.soldiers.splice(i, 1);
-      setAction("hit by soldier");
-      damage(DMG_SOLDIER, LANE_PAN[s.lane], 0.6);
-      if (phase !== "playing") return;
+    const laneName = { "-1": "left", "0": "center", "1": "right" }[s.lane];
+    if (s.state === "advance") {
+      s.d -= s.speed * dt;
+      const prox = 1 - Math.max(0, s.d);
+      s.bootsAcc += dt;
+      const interval = 0.5 - prox * 0.34; // far ~0.5s between steps -> near ~0.16s
+      if (s.bootsAcc >= interval) { s.bootsAcc = 0; AudioEngine.boots(LANE_PAN[s.lane], prox); }
+      if (s.d <= SOLDIER_RANGE) {
+        s.state = "firing"; s.fireTimer = SOLDIER_FIRE_WINDOW;
+        AudioEngine.enemyShot(LANE_PAN[s.lane]);
+        setAction("enemy firing " + laneName + "!");
+      }
+    } else { // firing at you until you take it out
+      s.fireTimer -= dt;
+      if (s.fireTimer <= 0) {
+        AudioEngine.enemyShot(LANE_PAN[s.lane]);
+        damage(DMG_SOLDIER, LANE_PAN[s.lane], 0, false); // bullet hit — no explosion
+        if (phase !== "playing") return;
+        s.fireTimer = SOLDIER_FIRE_REPEAT;
+      }
     }
   }
 
@@ -319,15 +344,16 @@ function startWaves() {
 }
 
 const TUTORIAL =
-  "Audio Battlefield. Put on headphones. Enemies come from the left, center, and right. " +
-  "Swipe toward a sound to shoot it. Tap for the center. " +
-  "Swipe up to shoot down a plane. Swipe down to take cover from a shell. " +
-  "Hold your finger down to reload. Get ready!";
+  "Audio Battlefield. Put on headphones. You will hear enemy boots running toward you " +
+  "from the left, center, or right, getting louder as they close in. When one starts " +
+  "shooting, swipe toward it fast to take it out. Tap for the center. " +
+  "Swipe up to shoot down a plane, swipe down to take cover from a shell, and hold to reload. Get ready!";
 
 function beginGame() {
   if (el.overlay) el.overlay.style.display = "none";
   AudioEngine.init();
   AudioEngine.resume();
+  AudioEngine.loadSamples(SAMPLE_MAP); // real clips (if any) upgrade the synth
   phase = "intro";
   setStatus("Listen…");
   speak(TUTORIAL, startWaves);

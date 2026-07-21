@@ -150,14 +150,18 @@ const AudioEngine = (() => {
   function klaxon() {
     if (playSample("klaxon", 0, 1)) return;
     const t = now();
-    const o = ctx.createOscillator(); o.type = "square";
-    const g = ctx.createGain(); o.connect(g); g.connect(master);
-    [0, 0.28, 0.56, 0.84].forEach((dt, i) => o.frequency.setValueAtTime(i % 2 ? 330 : 466, t + dt));
+    const o = ctx.createOscillator(); o.type = "sawtooth";
+    const lp = ctx.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = 1100;
+    const g = ctx.createGain();
+    o.connect(lp); lp.connect(g); g.connect(master);
+    o.frequency.setValueAtTime(300, t);           // slow siren sweep, not a beep
+    o.frequency.linearRampToValueAtTime(560, t + 0.5);
+    o.frequency.linearRampToValueAtTime(300, t + 1.0);
     g.gain.setValueAtTime(0.0001, t);
-    g.gain.linearRampToValueAtTime(0.16, t + 0.03);
-    g.gain.setValueAtTime(0.16, t + 1.0);
-    g.gain.exponentialRampToValueAtTime(0.0001, t + 1.15);
-    o.start(t); o.stop(t + 1.2);
+    g.gain.linearRampToValueAtTime(0.12, t + 0.05);
+    g.gain.setValueAtTime(0.12, t + 0.95);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 1.1);
+    o.start(t); o.stop(t + 1.15);
   }
 
   function reload() {
@@ -192,9 +196,38 @@ const AudioEngine = (() => {
     o.connect(g); g.connect(master); o.start(t); o.stop(t + 0.4);
   }
 
+  // Short body-impact for a soldier kill — a dull thud, NOT an explosion.
+  function thud(panV = 0) {
+    const t = now();
+    const src = noiseSource();
+    const lp = ctx.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = 450;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.4, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.18);
+    const p = pan(panV);
+    src.connect(lp); lp.connect(g); g.connect(p); p.connect(master);
+    src.start(t); src.stop(t + 0.2);
+  }
+
   // ---- Sustained sounds with a control handle ------------------------------
-  // Plane engine: three detuned saws + a deep prop-chop LFO. Game moves pan + pitch.
+  // Plane engine: real fly-by clip if loaded (game sweeps the pan across it),
+  // otherwise a synthesized engine.
   function planeEngine() {
+    const s = samples["plane"];
+    if (s) {
+      const src = ctx.createBufferSource();
+      src.buffer = s.buf; src.playbackRate.value = s.rate;
+      const g = ctx.createGain(); g.gain.value = s.gain;
+      const p = pan(0);
+      src.connect(g); g.connect(p); p.connect(master);
+      const dur = s.dur || (s.buf.duration - s.offset);
+      if (s.dur) src.start(now(), s.offset, s.dur); else src.start(now(), s.offset);
+      return {
+        duration: dur,
+        setPan(v) { p.pan.setTargetAtTime(clamp(v, -1, 1), now(), 0.05); },
+        setBase() {},
+        stop() { try { src.stop(); } catch (e) {} }
+      };
+    }
     const t = now();
     const o1 = ctx.createOscillator(); o1.type = "sawtooth"; o1.frequency.value = 110;
     const o2 = ctx.createOscillator(); o2.type = "sawtooth"; o2.frequency.value = 114;
@@ -224,15 +257,29 @@ const AudioEngine = (() => {
   }
 
   function whistle() {
+    const s = samples["shell"];
+    if (s) {
+      const src = ctx.createBufferSource();
+      src.buffer = s.buf; src.playbackRate.value = s.rate;
+      const g = ctx.createGain(); g.gain.value = s.gain;
+      const p = pan(0);
+      src.connect(g); g.connect(p); p.connect(master);
+      const dur = s.dur || (s.buf.duration - s.offset);
+      if (s.dur) src.start(now(), s.offset, s.dur); else src.start(now(), s.offset);
+      return { duration: dur, setProgress() {}, stop() { try { src.stop(); } catch (e) {} } };
+    }
+    // Airy noise-whistle (high-Q bandpass on noise) — a real "incoming" hiss,
+    // not a pure ping-pong tone.
     const t = now();
-    const o = ctx.createOscillator(); o.type = "triangle"; o.frequency.value = 380;
+    const src = noiseSource();
+    const bp = ctx.createBiquadFilter(); bp.type = "bandpass"; bp.frequency.value = 700; bp.Q.value = 14;
     const g = ctx.createGain(); g.gain.value = 0.0001;
     const p = pan(0);
-    o.connect(g); g.connect(p); p.connect(master);
-    o.start(t); g.gain.setTargetAtTime(0.22, t, 0.08);
+    src.connect(bp); bp.connect(g); g.connect(p); p.connect(master);
+    src.start(t); g.gain.setTargetAtTime(0.5, t, 0.1);
     return {
-      setProgress(x) { o.frequency.setTargetAtTime(380 + x * 1700, now(), 0.04); },
-      stop() { const tt = now(); g.gain.setTargetAtTime(0.0001, tt, 0.05); o.stop(tt + 0.1); }
+      setProgress(x) { bp.frequency.setTargetAtTime(650 + x * 1500, now(), 0.05); },
+      stop() { const tt = now(); g.gain.setTargetAtTime(0.0001, tt, 0.05); src.stop(tt + 0.15); }
     };
   }
 
@@ -261,7 +308,7 @@ const AudioEngine = (() => {
     const lp = ctx.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = 240;
     const g = ctx.createGain();
     g.gain.setValueAtTime(0.0001, t);
-    g.gain.linearRampToValueAtTime(0.06 + Math.random() * 0.07, t + 0.03);
+    g.gain.linearRampToValueAtTime(0.03 + Math.random() * 0.05, t + 0.03);
     g.gain.exponentialRampToValueAtTime(0.0001, t + 0.7);
     const p = pan(panV);
     src.connect(lp); lp.connect(g); g.connect(p); p.connect(master);
@@ -284,7 +331,7 @@ const AudioEngine = (() => {
     const g = ctx.createGain(); g.gain.value = 0.07;
     src.connect(lp); lp.connect(g); g.connect(master); src.start();
     ambRumble = { src, g };
-    const booms = () => { if (!ambOn) return; distantBoom(Math.random() * 2 - 1); ambTimers.push(setTimeout(booms, 800 + Math.random() * 2400)); };
+    const booms = () => { if (!ambOn) return; distantBoom(Math.random() * 2 - 1); ambTimers.push(setTimeout(booms, 1600 + Math.random() * 3000)); };
     const crackle = () => {
       if (!ambOn) return;
       const n = 1 + Math.floor(Math.random() * 3);
@@ -301,7 +348,7 @@ const AudioEngine = (() => {
 
   return {
     init, resume, isReady, state, loadSamples, hasSample,
-    gunshot, enemyShot, boots, explosion, klaxon, reload, emptyClick, hitBuzz,
+    gunshot, enemyShot, boots, explosion, thud, klaxon, reload, emptyClick, hitBuzz,
     planeEngine, whistle,
     startHeartbeat, setHeartRate, stopHeartbeat,
     startAmbience, stopAmbience

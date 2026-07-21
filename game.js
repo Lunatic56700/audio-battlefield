@@ -31,12 +31,16 @@ const DMG_SOLDIER = 12;
 const DMG_SHELL = 30;
 const DMG_BOMB = 35;
 
-// Real recorded sounds live in ./assets/ (public-domain clips; see CREDITS.md).
-// offset/dur play just a short slice of a longer recording. Anything not listed
-// here (enemyShot, boots, plane, reload, klaxon) stays synthesized. See CREDITS.md.
+// Real recorded sounds in ./assets/ (see CREDITS.md). offset/dur play just a
+// short slice of a longer recording (e.g. one footstep out of a 34s walk loop).
+// Anything not listed here (reload, klaxon) stays synthesized.
 const SAMPLE_MAP = {
-  gunshot:   { url: "assets/gunshot.ogg",   gain: 0.9, offset: 0, dur: 0.7 },
-  explosion: { url: "assets/explosion.ogg", gain: 1.0, offset: 0, dur: 1.5 },
+  gunshot:   { url: "assets/gun.mp3",       gain: 0.9, offset: 0.02, dur: 0.35 },            // AK-47, first shot
+  enemyShot: { url: "assets/gun.mp3",       gain: 0.8, offset: 0.02, dur: 0.35, rate: 0.85 }, // same gun, pitched down = incoming
+  boots:     { url: "assets/boots.mp3",     gain: 1.1, offset: 0.25, dur: 0.30 },            // one step from the walk loop
+  explosion: { url: "assets/explosion.ogg", gain: 1.0, offset: 0,    dur: 1.6 },
+  plane:     { url: "assets/plane.mp3",     gain: 1.1, offset: 6.0,  dur: 5.0 },             // ~5s window around the fly-by
+  // shell:  { url: "assets/shell.mp3",     gain: 1.0, offset: 0,    dur: 2.0 },  // drop a clip here to use a real one
 };
 
 // ---- State ------------------------------------------------------------------
@@ -87,6 +91,15 @@ function speak(text, onDone) {
   u.onerror = () => { if (onDone) onDone(); };
   synth.speak(u);
 }
+// Short in-game callouts: interrupt any queued/older speech so they land
+// immediately instead of piling up behind earlier utterances (the "delay").
+function say(text, interrupt) {
+  if (!synth) return;
+  if (interrupt) synth.cancel();
+  const u = new SpeechSynthesisUtterance(text);
+  u.lang = "en-US"; u.rate = 1.05;
+  synth.speak(u);
+}
 function buzz(pattern) { if (navigator.vibrate) { try { navigator.vibrate(pattern); } catch (e) {} } }
 function setStatus(t) { if (el.status) el.status.textContent = t; }
 function setAction(t) { state && (state.lastAction = t); }
@@ -126,15 +139,17 @@ function spawnSoldier() {
 }
 function spawnPlane() {
   if (state.plane) return;
-  const dur = Math.max(3.2, 5 - state.wave * 0.2);
   AudioEngine.klaxon();
-  speak("Aircraft incoming.");
-  state.plane = { p: 0, dur, engine: AudioEngine.planeEngine(), targetable: false, downed: false };
+  say("Aircraft incoming.", true);
+  const engine = AudioEngine.planeEngine();
+  const dur = engine.duration || Math.max(3.2, 5 - state.wave * 0.2);
+  state.plane = { p: 0, dur, engine, targetable: false, downed: false };
 }
 function spawnShell() {
   if (state.shell) return;
-  const dur = Math.max(1.6, 2.4 - state.wave * 0.1);
-  state.shell = { p: 0, dur, snd: AudioEngine.whistle(), dodged: false };
+  const snd = AudioEngine.whistle();
+  const dur = snd.duration || Math.max(1.6, 2.4 - state.wave * 0.1);
+  state.shell = { p: 0, dur, snd, dodged: false };
 }
 
 // ---- Player actions ---------------------------------------------------------
@@ -142,7 +157,7 @@ function canFire() { return !state.reloading && state.ammo > 0; }
 
 function fireLane(lane) {
   if (state.reloading) return;
-  if (state.ammo <= 0) { AudioEngine.emptyClick(); speak("Reload."); setAction("empty!"); return; }
+  if (state.ammo <= 0) { AudioEngine.emptyClick(); say("Reload.", true); setAction("empty!"); return; }
   state.ammo--;
   AudioEngine.gunshot(LANE_PAN[lane], 0.6);
   const name = { "-1": "left", "0": "center", "1": "right" }[lane];
@@ -152,13 +167,13 @@ function fireLane(lane) {
   if (hit) {
     state.soldiers.splice(state.soldiers.indexOf(hit), 1);
     state.score += 10; state.kills++;
-    AudioEngine.explosion(LANE_PAN[lane], 0.6, 0.7);
+    AudioEngine.thud(LANE_PAN[lane]);   // body drop, not an explosion
     buzz(40);
     setAction("hit " + name);
   } else {
     setAction("shot " + name + " (miss)");
   }
-  if (state.ammo === 0) speak("Reload.");
+  if (state.ammo === 0) say("Reload.", true);
 }
 
 function fireAtPlane() {
@@ -175,7 +190,7 @@ function fireAtPlane() {
     setAction("plane DOWN!");
     p.engine.stop();
     state.plane = null;
-    speak("Plane down!");
+    say("Plane down!", true);
   } else {
     setAction("shot up (no plane)");
   }
@@ -189,7 +204,7 @@ function takeCover() {
     state.score += 5;
     buzz(30);
     setAction("took cover");
-    speak("Safe.");
+    say("Safe.", true);
   } else {
     setAction("cover (nothing)");
   }
@@ -248,7 +263,7 @@ function tick() {
   state.waveClock += dt;
   if (state.waveClock >= WAVE_TIME) {
     state.waveClock = 0; state.wave++;
-    speak("Wave " + state.wave);
+    say("Wave " + state.wave, true);
     setStatus("Wave " + state.wave);
   }
 
@@ -300,7 +315,7 @@ function tick() {
     if (p.p >= 1) {
       p.engine.stop(); state.plane = null;
       setAction("bombed!");
-      speak("Bombed!");
+      say("Bombed!", true);
       damage(DMG_BOMB, 0, 1.2);
       if (phase !== "playing") return;
     }
@@ -341,16 +356,17 @@ function startWaves() {
 }
 
 const TUTORIAL =
-  "Audio Battlefield. Put on headphones. You will hear enemy boots running toward you " +
-  "from the left, center, or right, getting louder as they close in. When one starts " +
-  "shooting, swipe toward it fast to take it out. Tap for the center. " +
-  "Swipe up to shoot down a plane, swipe down to take cover from a shell, and hold to reload. Get ready!";
+  "Audio Battlefield. Headphones on. You'll hear boots running at you from the left, " +
+  "center, or right. When a soldier opens fire, swipe toward it to shoot back, or tap for center. " +
+  "Swipe up at planes, swipe down to take cover, hold to reload. Go!";
 
 function beginGame() {
   if (el.overlay) el.overlay.style.display = "none";
   AudioEngine.init();
   AudioEngine.resume();
   AudioEngine.loadSamples(SAMPLE_MAP); // real clips (if any) upgrade the synth
+  // Warm up the speech engine so the first spoken line isn't delayed.
+  if (synth) { try { const w = new SpeechSynthesisUtterance(" "); w.volume = 0; synth.speak(w); } catch (e) {} }
   phase = "intro";
   setStatus("Listen…");
   speak(TUTORIAL, startWaves);

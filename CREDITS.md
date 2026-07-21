@@ -1,27 +1,28 @@
 # Sound credits
 
-All sounds in this game are either **synthesized in the browser** (no file) or
-use **public-domain** recordings. No attribution is legally required for
-public-domain works, but sources are listed here for transparency.
+Sounds are either **synthesized in the browser** (no file) or short recorded
+clips in `assets/`. Only a slice of each recording is played in-game (see
+`offset`/`dur` in `SAMPLE_MAP` in `game.js`).
 
 ## Recorded clips (`assets/`)
 
 | File | Sound | Source | License |
 | ---- | ----- | ------ | ------- |
-| `gunshot.ogg` | Player gunfire | Wikimedia Commons — "Gunshots 8.ogg" | Public domain |
-| `explosion.ogg` | Explosions (kills, bombs, shells) | Wikimedia Commons — "Explosion 10.ogg" | Public domain |
+| `gun.mp3` | Player + enemy gunfire (AK-47) | Pixabay (microsammy) | Pixabay Content License |
+| `plane.mp3` | Fighter fly-by | Pixabay (u_xg7ssi08yr) | Pixabay Content License |
+| `boots.mp3` | Running boots on gravel | Pixabay (freesound_community) | Pixabay Content License |
+| `explosion.ogg` | Explosions (bombs, shells, plane down) | Wikimedia Commons — "Explosion 10.ogg" | Public domain |
 
-Only a short slice of each clip is played in-game (see `offset`/`dur` in
-`SAMPLE_MAP` in `game.js`).
+The Pixabay Content License allows free use (including commercial) without
+attribution; contributors are credited here anyway.
 
 ## Synthesized (no file)
 
-Enemy gunfire, running boots, plane engine, shell whistle, reload, klaxon,
-heartbeat, and the battlefield ambience bed are all generated procedurally with
-the Web Audio API in `audio.js`.
+Enemy fire uses the AK clip pitched down. The **incoming shell whistle**, reload,
+klaxon siren, heartbeat, soldier-death thud, and the battlefield ambience bed are
+generated procedurally in `audio.js`.
 
-## Wanted: real airplane + reload
+## Still synthesized: the shell whistle
 
-Good real recordings for the plane engine and weapon reload on Wikimedia Commons
-are licensed **CC BY-SA** (attribution required), not public domain, so they are
-not bundled yet. If you'd like them, they can be added here with proper credit.
+No good free "incoming shell" recording was found. To use a real one, drop a clip
+at `assets/shell.mp3` and uncomment the `shell` entry in `SAMPLE_MAP` (`game.js`).

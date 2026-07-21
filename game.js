@@ -31,15 +31,12 @@ const DMG_SOLDIER = 12;
 const DMG_SHELL = 30;
 const DMG_BOMB = 35;
 
-// Real recorded sounds live in ./assets/. Anything missing falls back to synth.
-// (Filled in as real clips are added; empty = fully synthesized.)
+// Real recorded sounds live in ./assets/ (public-domain clips; see CREDITS.md).
+// offset/dur play just a short slice of a longer recording. Anything not listed
+// here (enemyShot, boots, plane, reload, klaxon) stays synthesized. See CREDITS.md.
 const SAMPLE_MAP = {
-  // gunshot:   "assets/gunshot.mp3",
-  // enemyShot: "assets/enemy-shot.mp3",
-  // boots:     "assets/boots.mp3",
-  // explosion: "assets/explosion.mp3",
-  // klaxon:    "assets/klaxon.mp3",
-  // reload:    "assets/reload.mp3",
+  gunshot:   { url: "assets/gunshot.ogg",   gain: 0.9, offset: 0, dur: 0.7 },
+  explosion: { url: "assets/explosion.ogg", gain: 1.0, offset: 0, dur: 1.5 },
 };
 
 // ---- State ------------------------------------------------------------------

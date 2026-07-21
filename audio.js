@@ -44,28 +44,34 @@ const AudioEngine = (() => {
   function pan(v) { const p = ctx.createStereoPanner(); p.pan.value = clamp(v, -1, 1); return p; }
 
   // ---- Real-sample layer ----------------------------------------------------
-  const samples = {};      // name -> decoded AudioBuffer
-  // Load a map of { name: url }. Missing / failed files just fall back to synth.
+  const samples = {};      // name -> { buf, gain, offset, dur, rate }
+  // Load { name: url } or { name: {url, gain, offset, dur, rate} }.
+  // offset/dur let us play just a short slice of a longer recording (no editing
+  // tools needed). Missing / failed files just fall back to synth.
   async function loadSamples(map) {
     if (!ctx) init();
-    await Promise.all(Object.entries(map || {}).map(async ([name, url]) => {
+    await Promise.all(Object.entries(map || {}).map(async ([name, spec]) => {
+      const cfg = typeof spec === "string" ? { url: spec } : spec;
       try {
-        const res = await fetch(url);
+        const res = await fetch(cfg.url);
         if (!res.ok) return;
-        samples[name] = await ctx.decodeAudioData(await res.arrayBuffer());
+        const buf = await ctx.decodeAudioData(await res.arrayBuffer());
+        samples[name] = { buf, gain: cfg.gain ?? 1, offset: cfg.offset ?? 0, dur: cfg.dur, rate: cfg.rate ?? 1 };
       } catch (e) { /* keep synth fallback */ }
     }));
   }
   function hasSample(name) { return !!samples[name]; }
   function playSample(name, panV = 0, vol = 1, rate = 1) {
-    const buf = samples[name];
-    if (!buf) return false;
+    const s = samples[name];
+    if (!s) return false;
     const src = ctx.createBufferSource();
-    src.buffer = buf; src.playbackRate.value = rate;
-    const g = ctx.createGain(); g.gain.value = vol;
+    src.buffer = s.buf; src.playbackRate.value = rate * s.rate;
+    const g = ctx.createGain(); g.gain.value = vol * s.gain;
     const p = pan(panV);
     src.connect(g); g.connect(p); p.connect(master);
-    src.start();
+    if (s.dur) src.start(now(), s.offset, s.dur);
+    else if (s.offset) src.start(now(), s.offset);
+    else src.start();
     return true;
   }
 
